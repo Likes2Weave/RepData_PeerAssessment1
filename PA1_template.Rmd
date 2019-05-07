@@ -16,12 +16,15 @@ readLines("activity.csv", n=5)
 
 When viewing the first few lines of the raw data, you see that activity.csv includes a header with three columns (steps, date, interval), dates are strings in the form year-month-day (%Y-%m-%d) and missing values are tracked as NA. Set header to true to preserve column names.
 
-To be able to organize data by time intervals such as day or month, convert the character representation of date to date class.
-
-```{r LoadAndProcess2}
+```{r LoadData}
 ## Read
 activity <- read.csv("activity.csv", header=TRUE)
 str(activity)
+```
+
+To be able to organize data by time intervals such as day or month, convert the character representation of date to date class.
+
+```{r Process}
 ## Convert characters to date
 activity <- transform(activity, date=as.Date(date))
 str(activity)
@@ -30,7 +33,7 @@ str(activity)
 ## What is mean total number of steps taken per day?
 Some intervals and days display NA values for steps. For this part of the assignment, you can ignore the missing values in the dataset.
 
-Calculate the total number of steps per day. Use the total steps per day to create the histogram of the total steps taken per day.
+Use the total steps per day to create the histogram of the total steps taken per day.
 
 ```{r Histogram}
 SummarySteps <- select (activity, date, steps) %>%
@@ -42,24 +45,24 @@ with (SummarySteps, hist(total_steps,
                          xlab = "Total Steps each Day"))
 ```
 
-Calculate the mean and median of the total number of steps taken per day. Display the results.
+Calculate the mean and median of the total number of steps taken per day. 
 
 ```{r MeanAndMedian}
-SummarySteps <- summarise(SummarySteps, 
+MeanAndMedian <- summarise(SummarySteps, 
                            mean_steps=mean(total_steps),
                            median_steps=median(total_steps))
 
-print(SummarySteps)
+print(MeanAndMedian)
 ```
 
 ## What is the average daily activity pattern?
-
 Make a time series plot (i.e.type="l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis).
 
 ```{r PlotByInterval}
 SummaryInterval <- activity %>%
     group_by(interval) %>%
-    summarise(mean_steps=mean(steps, na.rm=TRUE))
+    summarise(mean_steps=mean(steps, na.rm=TRUE),
+              median_steps=median(steps, na.rm=TRUE))
 
 with(SummaryInterval, 
      plot(interval, mean_steps, type="l", 
@@ -77,27 +80,78 @@ Interval `r which.max(SummaryInterval$mean_steps)` contains the maximum number o
 
 As mentioned earlier, there are a number of days/intervals where there are missing values coded as NA). The presence of missing days may introduce bias into some calculations or summaries of the data.
 
-###Determine the total number of missing values in the dataset 
-
 Checking the summary for activity, it appears that just steps has NA values.
 
 ``` {r FindNAs}
 summary(activity)
-
-## How many incomplete (NA values)?
-sum(is.na(activity$steps)==TRUE)
-
 ```
 
 Total number of rows with missing values is `r sum(is.na(activity$steps)==TRUE)`.
 
-###Devise a strategy for filling in all of the missing values
+Since there are some days with no data, fill in missing data with the mean steps for the given interval. Doing this is not the most highly recommended (based on a quick scan of https://github.com/lgreski/datasciencectacontent/blob/master/markdown/gen-handlingMissingValues.md), but it is simple. Curious, also try filling missing data with the median steps for the given interval.
 
-Since there are some days with no data, substitute the value of the mean for the given interval with missing data. Doing this is not the most highly recommended (based on a quick scan of https://github.com/lgreski/datasciencectacontent/blob/master/markdown/gen-handlingMissingValues.md). Using the mean for the given interval, assumes that activity levels do not vary widely across days for the given intervals.
-
-###Create a new dataset that is equal to the original dataset but with the missing data filled in
+Create a new dataset that is equal to the original dataset but with the missing data replaced by the mean (or median) for the given interval.
 
 ```{r FillNAs}
+## Fill with mean
+activityNoNA_mean <- activity %>% 
+    mutate(steps = ifelse(is.na(steps),
+                SummaryInterval$mean_steps[
+                    SummaryInterval$interval==activity$interval],steps))
+
+## Fill with median
+activityNoNA_median <- activity %>% 
+    mutate(steps = ifelse(is.na(steps),
+                SummaryInterval$median_steps[
+                    SummaryInterval$interval==activity$interval],steps))
 ```
 
-# Are there differences in activity patterns between weekdays and weekends?
+Make a histogram of the total number of steps taken each day. Recalculate the number of steps per day, first.
+
+```{r Histogram-2}
+## summarize NA replaced by mean
+SummaryStepsNoNA_mean <- select (activityNoNA_mean, date, steps) %>%
+    group_by(date) %>%
+    summarise(total_steps=sum(steps, na.rm = TRUE))
+
+## summarize NA replaced by median
+SummaryStepsNoNA_median <- select (activityNoNA_median, date, steps) %>%
+    group_by(date) %>%
+    summarise(total_steps=sum(steps, na.rm = TRUE))
+
+# print histograms side by side for comparison
+par(mfrow=c(1,3))
+
+with (SummarySteps, hist(total_steps, 
+                         ylim = c(0,30),
+                         main="Steps per day"))
+
+with (SummaryStepsNoNA_mean, hist(total_steps, 
+                                  ylim = c(0,30),
+                                  main="Steps/day (NA to mean)"))
+
+with (SummaryStepsNoNA_median, hist(total_steps, 
+                                    ylim = c(0,30),
+                                    main="Steps/day (NA to median)"))
+```
+
+Calculate and report the mean and median total number of steps taken per day. 
+```{r MeanAndMedian2}
+MeanAndMedianNoNA_mean <- summarise(SummaryStepsNoNA_mean, 
+                           mean_steps=mean(total_steps),
+                           median_steps=median(total_steps))
+MeanAndMedianNoNA_median <- summarise(SummaryStepsNoNA_median, 
+                           mean_steps=mean(total_steps),
+                           median_steps=median(total_steps))
+
+print(MeanAndMedianNoNA_mean)
+print(MeanAndMedianNoNA_median)
+print(MeanAndMedian)
+```
+In both cases, replaces NAs with the mean or median results in new data sets with higher means. Replacing NAs with the mean also increased the resulting median. Hovever, replacing the NAs with the median had no change on the median of the new data set.
+
+
+
+Imputing missing data on the estimates of the total daily number of steps seems to have had a more pronounced impact on the data in the lower step count range. However, based on the shape of the histogram, imputing with the median had less impact.
+
+## Are there differences in activity patterns between weekdays and weekends?
