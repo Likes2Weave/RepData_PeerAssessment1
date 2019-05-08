@@ -27,6 +27,10 @@ library(dplyr)
 ##     intersect, setdiff, setequal, union
 ```
 
+```r
+library(ggplot2)
+```
+
 ## Loading and preprocessing the data
 
 ```r
@@ -248,10 +252,53 @@ print(MeanAndMedian)
 ##        <dbl>        <int>
 ## 1      9354.        10395
 ```
-In both cases, replaces NAs with the mean or median results in new data sets with higher means. Replacing NAs with the mean also increased the resulting median. Hovever, replacing the NAs with the median had no change on the median of the new data set.
+In both cases, replacing NAs with the mean or median results in new data sets with higher means. Replacing NAs with the mean also increased the resulting median. Hovever, replacing the NAs with the median had no change on the median of the new data set.
 
-
-
-What is the impact of imputing missing data on the estimates of the total daily number of steps?
+Imputing missing data using the mean seems to have had a more pronounced impact on the data in the lower step count range. However, based on the shape of the histogram, imputing with the median had less impact.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+Use weekdays() to create a new factor variable in the dataset with two levels – “weekday” and “weekend” indicating whether a given date is a weekday or weekend day.
+
+
+```r
+Weekend <- c("Sat","Sun")
+# weekday or weekend?
+activityByDay <- activityNoNA_median %>% 
+     mutate(the_week = ifelse((weekdays(date,abbreviate=TRUE) %in% Weekend),
+                              "weekend","weekday"))
+
+## Make Factor, define levels so that "weekend"" appears on top panel
+activityByDay$the_week <- factor(activityByDay$the_week, levels = c("weekend","weekday"))
+
+## Double check
+str(activityByDay)
+```
+
+```
+## 'data.frame':	17568 obs. of  4 variables:
+##  $ steps   : int  0 0 0 0 0 0 0 0 0 0 ...
+##  $ date    : Date, format: "2012-10-01" "2012-10-01" ...
+##  $ interval: int  0 5 10 15 20 25 30 35 40 45 ...
+##  $ the_week: Factor w/ 2 levels "weekend","weekday": 2 2 2 2 2 2 2 2 2 2 ...
+```
+
+Make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis).  
+
+```r
+SummaryByDay <- activityByDay %>%
+    group_by(the_week, interval) %>%
+    summarise(total_steps=sum(steps, na.rm=TRUE))
+
+g = qplot(interval, total_steps, data =SummaryByDay, 
+          geom="path", xlab = "Interval", ylab="Number of Steps")
+g + facet_wrap(~ the_week, nrow=2)
+```
+
+![](PA1_template_files/figure-html/ActivityByDay-1.png)<!-- -->
+
+From the graphs, you can see that the subject was more active during the week than on the weekend.  On the weekend the subject did not exceed 2500 steps per interval.  Weekdays saw several step counts well over 2500 over the course of the day.
+
+## MISC
+In case of MacEmergency, review:
+https://github.com/lgreski/datasciencectacontent/blob/master/markdown/repData-configuringKnitrWithMarkdownOutput.md
